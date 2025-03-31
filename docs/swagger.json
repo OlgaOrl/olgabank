@@ -1,0 +1,407 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "olgao-bank",
+    "version": "1.0.0",
+    "description": "Dokumentatsioon pangarakenduse API-le"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Arendusserver"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Registreerimine, sisselogimine ja seonduvad toimingud"
+    },
+    {
+      "name": "Accounts",
+      "description": "Kontode loomine, vaatamine, kustutamine ja populeerimine"
+    },
+    {
+      "name": "Transactions",
+      "description": "Tehingute algatamine, vaatamine ja haldus"
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Registreeri uus kasutaja",
+        "requestBody": {
+          "description": "Registreerimiseks vajalikud andmed",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Registreerimine õnnestus" },
+          "400": { "description": "Puuduvad kohustuslikud väljad" },
+          "409": { "description": "Kasutaja juba eksisteerib" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Sisselogimine",
+        "requestBody": {
+          "description": "Sisselogimiseks vajalikud andmed",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Sisselogimine õnnestus ja tagastab tokeni" },
+          "401": { "description": "Vale kasutajanimi või parool" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Log out (väljalogimine)",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": { "description": "Väljalogimine õnnestus" },
+          "401": { "description": "Autentimine ebaõnnestus" }
+        }
+      }
+    },
+    "/accounts": {
+      "get": {
+        "tags": ["Accounts"],
+        "summary": "Kasutaja kontode pärimine",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tagastab kasutaja kontod",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Account"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Autentimine ebaõnnestus" }
+        }
+      },
+      "post": {
+        "tags": ["Accounts"],
+        "summary": "Uue konto loomine",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Konto loomise andmed",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Konto loodud",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "400": { "description": "Puuduvad vajalikud andmed" }
+        }
+      }
+    },
+    "/accounts/deposit": {
+      "post": {
+        "tags": ["Accounts"],
+        "summary": "Populeeri olemasolevat kontot",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Andmed konto populeerimiseks",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepositRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Konto edukalt populeeritud",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "400": { "description": "Vigased või puuduvad andmed" },
+          "401": { "description": "Autentimine ebaõnnestus" }
+        }
+      }
+    },
+    "/accounts/{accountNumber}": {
+      "delete": {
+        "tags": ["Accounts"],
+        "summary": "Konto kustutamine",
+        "description": "Kustutab kasutaja konto antud kontonumbri alusel.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "accountNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Konto unikaalne number"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Konto kustutatud edukalt" },
+          "400": { "description": "Vigased või puuduvad andmed" },
+          "401": { "description": "Autentimine ebaõnnestus" },
+          "404": { "description": "Konto ei leitud" }
+        }
+      }
+    },
+    "/transactions/internal": {
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "Sisemine tehing",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Tehingu andmed (sisemine)",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InternalTransactionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Sisemine tehing teostatud" },
+          "400": { "description": "Vigased või puuduvad andmed" },
+          "404": { "description": "Kontod ei leitud" }
+        }
+      }
+    },
+    "/transactions/external": {
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "Väline tehing",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Tehingu andmed (väline)",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalTransactionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Väline tehing algatatud" },
+          "400": { "description": "Puuduvad vajalikud andmed või ebapiisavad vahendid" },
+          "404": { "description": "Konto ei leitud" }
+        }
+      }
+    },
+    "/transactions/{transactionId}/cancel": {
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "Tehingu tühistamine",
+        "description": "Tühistab tehingu, kui see on veel tühistamisele lubatud olekus.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "transactionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Tehingu unikaalne identifikaator"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Tehing tühistatud edukalt" },
+          "400": { "description": "Tehingut ei saa tühistada või vigased andmed" },
+          "401": { "description": "Autentimine ebaõnnestus" },
+          "404": { "description": "Tehingut ei leitud" }
+        }
+      }
+    },
+    "/transactions": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Tehinguajalugu",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tagastab kasutaja tehingud",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Transaction"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Autentimine ebaõnnestus" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        },
+        "required": ["username", "password"]
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        },
+        "required": ["username", "password"]
+      },
+      "Account": {
+        "type": "object",
+        "properties": {
+          "accountNumber": { "type": "string" },
+          "currency": { "type": "string" },
+          "balance": { "type": "number" }
+        },
+        "required": ["accountNumber", "currency", "balance"]
+      },
+      "AccountCreateRequest": {
+        "type": "object",
+        "properties": {
+          "currency": { "type": "string" }
+        },
+        "required": ["currency"]
+      },
+      "DepositRequest": {
+        "type": "object",
+        "properties": {
+          "accountNumber": { "type": "string" },
+          "amount": { "type": "number" }
+        },
+        "required": ["accountNumber", "amount"]
+      },
+      "InternalTransactionRequest": {
+        "type": "object",
+        "properties": {
+          "fromAccount": { "type": "string" },
+          "toAccount": { "type": "string" },
+          "amount": { "type": "number" }
+        },
+        "required": ["fromAccount", "toAccount", "amount"]
+      },
+      "ExternalTransactionRequest": {
+        "type": "object",
+        "properties": {
+          "fromAccount": { "type": "string" },
+          "toAccount": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string" }
+        },
+        "required": ["fromAccount", "toAccount", "amount", "currency"]
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "fromAccount": { "type": "string" },
+          "toAccount": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "inProgress", "completed", "failed"]
+          }
+        },
+        "required": ["id", "fromAccount", "toAccount", "amount", "currency", "status"]
+      }
+    }
+  }
+}
