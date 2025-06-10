@@ -8,7 +8,7 @@
   "servers": [
     {
       "url": "http://localhost:3000",
-      "description": "Arendusserver"
+      "description": "Lokaalne server"
     }
   ],
   "tags": [
@@ -373,9 +373,10 @@
         "properties": {
           "fromAccount": { "type": "string" },
           "toAccount": { "type": "string" },
-          "amount": { "type": "number" }
+          "amount": { "type": "number" },
+          "currency": { "type": "string" }
         },
-        "required": ["fromAccount", "toAccount", "amount"]
+        "required": ["fromAccount", "toAccount", "amount", "currency"]
       },
       "ExternalTransactionRequest": {
         "type": "object",

@@ -1,8 +1,8 @@
 const Account = require('../models/Account');
 
 /**
- * Генерирует уникальный номер счета с использованием префикса из переменной окружения.
- * @returns {string} Уникальный номер счета.
+ * Generates a unique account number using the prefix from environment variables.
+ * @returns {string} Unique account number.
  */
 function generateAccountNumber() {
     const prefix = process.env.BANK_PREFIX || 'BANK';
@@ -11,37 +11,37 @@ function generateAccountNumber() {
 }
 
 /**
- * Контроллер для создания нового счета.
- * Ожидается, что middleware-аутентификации установит req.user.userId.
+ * Controller for creating a new account.
+ * It is expected that authentication middleware sets req.user.userId.
  *
- * @param {object} req - Запрос Express.
- * @param {object} res - Ответ Express.
+ * @param {object} req - Express request.
+ * @param {object} res - Express response.
  */
 exports.createAccount = async (req, res) => {
     try {
         const { currency } = req.body;
         if (!currency) {
-            return res.status(400).json({ error: 'Поле currency обязательно' });
+            return res.status(400).json({ error: 'Currency field is required' });
         }
 
         const ownerId = req.user.userId;
         const accountNumber = generateAccountNumber();
 
-        // Создаем новый счет в базе данных
+        // Create a new account in the database
         const newAccount = await Account.create({ ownerId, currency, accountNumber });
         return res.status(201).json(newAccount);
     } catch (error) {
-        console.error('Ошибка создания счета:', error);
-        return res.status(500).json({ error: 'Ошибка сервера' });
+        console.error('Error creating account:', error);
+        return res.status(500).json({ error: 'Server error' });
     }
 };
 
 /**
- * Контроллер для получения счетов пользователя.
- * Ожидается, что req.user.userId установлен (middleware-аутентификации).
+ * Controller for retrieving user accounts.
+ * It is expected that req.user.userId is set (authentication middleware).
  *
- * @param {object} req - Запрос Express.
- * @param {object} res - Ответ Express.
+ * @param {object} req - Express request.
+ * @param {object} res - Express response.
  */
 exports.getAccounts = async (req, res) => {
     try {
@@ -49,47 +49,51 @@ exports.getAccounts = async (req, res) => {
         const accounts = await Account.findByOwner(ownerId);
         return res.status(200).json(accounts);
     } catch (error) {
-        console.error('Ошибка получения счетов:', error);
-        return res.status(500).json({ error: 'Ошибка сервера' });
+        console.error('Error retrieving accounts:', error);
+        return res.status(500).json({ error: 'Server error' });
     }
 };
 
 /**
- * Контроллер для пополнения счета.
- * Ожидается, что req.user.userId установлен middleware-аутентификации.
+ * Controller for depositing money into an account.
+ * It is expected that req.user.userId is set by authentication middleware.
  *
- * @param {object} req - Запрос Express.
- * @param {object} res - Ответ Express.
+ * @param {object} req - Express request.
+ * @param {object} res - Express response.
  */
 exports.depositMoney = async (req, res) => {
     try {
         const { accountNumber, amount } = req.body;
         const ownerId = req.user.userId;
 
-        // Преобразуем amount в число и проверяем, что оно положительное
+        // Convert amount to a number and check that it's positive
         const depositAmount = Number(amount);
         if (!accountNumber || isNaN(depositAmount) || depositAmount <= 0) {
-            return res.status(400).json({ error: 'Нужны корректные accountNumber и положительная сумма (amount)' });
+            return res.status(400).json({ error: 'Valid accountNumber and positive amount are required' });
         }
 
-        // Получаем все счета пользователя по его ownerId
+        // Get all user accounts by ownerId
         const accounts = await Account.findByOwner(ownerId);
-        // Ищем счет с указанным accountNumber
+        // Find the account with the specified accountNumber
         const account = accounts.find(acc => acc.accountNumber === accountNumber);
 
         if (!account) {
-            return res.status(404).json({ error: 'Счет не найден' });
+            return res.status(404).json({ error: 'Account not found' });
         }
 
-        // Вычисляем новый баланс
+        // Calculate the new balance
         const newBalance = account.balance + depositAmount;
 
-        // Обновляем баланс счета в базе данных
+        // Update the account balance in the database
         await Account.updateBalance(accountNumber, newBalance);
 
-        return res.status(200).json({ message: 'Счет успешно пополнен', newBalance });
+        return res.status(200).json({
+            accountNumber: account.accountNumber,
+            currency: account.currency,
+            balance: newBalance
+        });
     } catch (error) {
-        console.error('Ошибка пополнения счета:', error);
-        return res.status(500).json({ error: 'Ошибка сервера' });
+        console.error('Error depositing funds:', error);
+        return res.status(500).json({ error: 'Server error' });
     }
 };

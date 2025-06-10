@@ -3,99 +3,107 @@ const Transaction = require('../models/Transaction');
 
 async function internalTransfer(req, res) {
     try {
-        const { fromAccount, toAccount, amount, currency } = req.body;
+        const { fromAccount, toAccount, amount } = req.body;
 
-        // Проверка наличия всех обязательных полей
-        if (!fromAccount || !toAccount || !amount || !currency) {
-            return res.status(400).json({ message: 'Все поля (fromAccount, toAccount, amount, currency) обязательны' });
+        // Check for required fields for internal transfer
+        if (!fromAccount || !toAccount || !amount) {
+            return res.status(400).json({ message: 'All fields (fromAccount, toAccount, amount) are required' });
         }
 
-        // Отладочная информация об авторизованном пользователе
+        // Debug information about authenticated user
         console.log('User object:', req.user);
-        console.log('User ID:', req.user?.userId);
+        console.log('User ID:', req.user ? req.user.userId : null);
 
-        // Проверка наличия userId
+        // Check if userId exists
         if (!req.user || !req.user.userId) {
-            return res.status(401).json({ message: 'Пользователь не авторизован или отсутствует ID пользователя' });
+            return res.status(401).json({ message: 'User not authenticated or missing user ID' });
         }
 
-        // Преобразуем amount в число и проверяем, что оно положительное
+        // Convert amount to number and check if positive
         const transferAmount = Number(amount);
         if (isNaN(transferAmount) || transferAmount <= 0) {
-            return res.status(400).json({ message: 'Сумма перевода должна быть положительным числом' });
+            return res.status(400).json({ message: 'Transfer amount must be a positive number' });
         }
 
-        // Получаем счета текущего пользователя по его ID (устанавливается middleware-аутентификации)
+        // Get user accounts by ID (set by authentication middleware)
         const accounts = await Account.findByOwner(req.user.userId);
         const sender = accounts.find(acc => acc.accountNumber === fromAccount);
         const receiver = accounts.find(acc => acc.accountNumber === toAccount);
 
         if (!sender || !receiver) {
-            return res.status(404).json({ message: 'Один или оба счета не найдены' });
+            return res.status(404).json({ message: 'One or both accounts not found' });
         }
 
-        // Проверяем, достаточно ли средств у отправителя
+        // For internal transfers, use sender account currency
+        const currency = sender.currency;
+
+        // Check that account currencies match
+        if (sender.currency !== receiver.currency) {
+            return res.status(400).json({ message: 'Sender and receiver account currencies must match for internal transfer' });
+        }
+
+        // Check if sender has sufficient funds
         if (sender.balance < transferAmount) {
-            return res.status(400).json({ message: 'Недостаточно средств на счете отправителя' });
+            return res.status(400).json({ message: 'Insufficient funds in sender account' });
         }
 
-        // Вычисляем новые балансы
+        // Calculate new balances
         const newSenderBalance = sender.balance - transferAmount;
         const newReceiverBalance = receiver.balance + transferAmount;
 
-        // Обновляем балансы счетов в базе данных
+        // Update account balances in database
         await Account.updateBalance(fromAccount, newSenderBalance);
         await Account.updateBalance(toAccount, newReceiverBalance);
 
-        // Убедимся, что userId - это число или можно преобразовать к числу
+        // Ensure userId is a number
         const ownerId = Number(req.user.userId);
-        console.log('Owner ID для транзакции:', ownerId);
+        console.log('Owner ID for transaction:', ownerId);
 
         if (isNaN(ownerId)) {
-            console.error('Ошибка: ID пользователя не является числом');
+            console.error('Error: User ID is not a number');
         }
 
-        // Создаем запись транзакции, включая ownerId для связи транзакции с пользователем
+        // Create transaction record, using account currency
         const transaction = await Transaction.create({
             fromAccount,
             toAccount,
             amount: transferAmount,
-            currency,
+            currency, // Use sender account currency
             status: 'completed',
-            ownerId: ownerId // Используем числовой ID
+            ownerId: ownerId
         });
 
-        console.log('Созданная транзакция:', transaction);
+        console.log('Created transaction:', transaction);
 
-        return res.status(200).json({ message: 'Перевод выполнен успешно', transaction });
+        return res.status(200).json({ message: 'Transfer completed successfully', transaction });
     } catch (error) {
-        console.error('Ошибка внутреннего перевода:', error);
-        return res.status(500).json({ message: 'Ошибка сервера', error });
+        console.error('Internal transfer error:', error);
+        return res.status(500).json({ message: 'Server error', error });
     }
 }
 
-// Получение истории транзакций пользователя
+// Get user transaction history
 async function getTransactionHistory(req, res) {
     try {
-        console.log('User ID для истории транзакций:', req.user?.userId);
+        console.log('User ID for transaction history:', req.user ? req.user.userId : null);
 
         if (!req.user || !req.user.userId) {
-            return res.status(401).json({ message: 'Пользователь не авторизован или отсутствует ID пользователя' });
+            return res.status(401).json({ message: 'User not authenticated or missing user ID' });
         }
 
-        // Получаем транзакции пользователя
+        // Get user transactions
         const transactions = await Transaction.findByOwner(req.user.userId);
 
         return res.status(200).json({ transactions });
     } catch (error) {
-        console.error('Ошибка получения истории транзакций:', error);
-        return res.status(500).json({ message: 'Ошибка сервера', error });
+        console.error('Error getting transaction history:', error);
+        return res.status(500).json({ message: 'Server error', error });
     }
 }
 
-// Заглушка для внешнего перевода (пока не реализована)
+// Stub for external transfer (not implemented yet)
 async function externalTransfer(req, res) {
-    return res.status(200).json({ message: 'Внешний перевод пока не реализован' });
+    return res.status(200).json({ message: 'External transfer not implemented yet' });
 }
 
 module.exports = { internalTransfer, externalTransfer, getTransactionHistory };

@@ -10,7 +10,7 @@
 - POST /accounts - Create a new account
 
 ## Internal Transfers
-- Endpoint: POST /transfer/internal
+- Endpoint: POST /transactions/internal
 - Required fields: fromAccount, toAccount, amount, currency
 
 ## External Transfers
