@@ -13,7 +13,20 @@ async function internalTransfer(req, res) {
         
         // Verify account ownership
         const account = await Account.findByAccountNumber(fromAccount);
-        if (!account || account.userId !== userId) {
+        console.log('Account found:', account);
+        console.log('User ID from token:', userId, 'type:', typeof userId);
+        console.log('Account owner ID:', account ? account.ownerId : null, 'type:', account ? typeof account.ownerId : null);
+
+        if (!account) {
+            return res.status(404).json({ message: 'Account not found' });
+        }
+
+        // Convert both IDs to numbers for comparison
+        const accountOwnerId = Number(account.ownerId);
+        const tokenUserId = Number(userId);
+
+        if (accountOwnerId !== tokenUserId) {
+            console.log('Account ownership verification failed');
             return res.status(403).json({ message: 'Unauthorized access to account' });
         }
         
@@ -76,7 +89,9 @@ async function internalTransfer(req, res) {
             toAccount,
             amount,
             currency: account.currency,
-            status: 'completed'
+            status: 'completed',
+            ownerId: Number(req.user.userId),  // Add ownerId to ensure it's saved
+            transactionType: 'internal'
         });
         
         return res.json({
@@ -101,7 +116,7 @@ async function getTransactionHistory(req, res) {
     try {
         const userId = req.user.userId;
         // Change from findByUserId to findByOwner
-        const transactions = await Transaction.findByOwner(userId);
+const transactions = await Transaction.findByOwner(userId);
         
         // Ensure we return an array
         return res.json(Array.isArray(transactions) ? transactions : []);
