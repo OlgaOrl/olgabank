@@ -2,8 +2,8 @@
   "openapi": "3.0.0",
   "info": {
     "title": "olgao-bank",
-    "version": "1.0.0",
-    "description": "Dokumentatsioon pangarakenduse API-le"
+    "version": "2.0.0",
+    "description": "Dokumentatsioon pangarakenduse API-le koos rollide ja auditi funktsioonidega"
   },
   "servers": [
     {
@@ -23,6 +23,14 @@
     {
       "name": "Transactions",
       "description": "Tehingute algatamine, vaatamine ja haldus"
+    },
+    {
+      "name": "Roles",
+      "description": "Kasutajarollide haldamine"
+    },
+    {
+      "name": "Audit",
+      "description": "Auditi logide vaatamine ja statistika"
     }
   ],
   "paths": {
@@ -318,6 +326,214 @@
           "401": { "description": "Autentimine ebaõnnestus" }
         }
       }
+    },
+    "/roles/my-roles": {
+      "get": {
+        "tags": ["Roles"],
+        "summary": "Kasutaja rollide pärimine",
+        "description": "Tagastab praeguse kasutaja rollid",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kasutaja rollid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRoles"
+                }
+              }
+            }
+          },
+          "401": { "description": "Autentimine ebaõnnestus" }
+        }
+      }
+    },
+    "/roles/users": {
+      "get": {
+        "tags": ["Roles"],
+        "summary": "Kõigi kasutajate rollide pärimine (ainult admin)",
+        "description": "Tagastab kõik kasutajad koos nende rollidega. Ainult administraatoritel lubatud.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kõik kasutajad rollidega",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserWithRoles"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Autentimine ebaõnnestus" },
+          "403": { "description": "Juurdepääs keelatud. Vaja admin rolli." }
+        }
+      }
+    },
+    "/roles/assign": {
+      "post": {
+        "tags": ["Roles"],
+        "summary": "Rolli määramine kasutajale (ainult admin)",
+        "description": "Määrab kasutajale uue rolli. Ainult administraatoritel lubatud.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "description": "Rolli määramise andmed",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Roll määratud edukalt" },
+          "400": { "description": "Vigased või puuduvad andmed" },
+          "401": { "description": "Autentimine ebaõnnestus" },
+          "403": { "description": "Juurdepääs keelatud. Vaja admin rolli." }
+        }
+      }
+    },
+    "/audit/my-logs": {
+      "get": {
+        "tags": ["Audit"],
+        "summary": "Kasutaja auditi logide pärimine",
+        "description": "Tagastab praeguse kasutaja auditi logid",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maksimaalne tagastatavate kirjete arv",
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kasutaja auditi logid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditLog"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Autentimine ebaõnnestus" }
+        }
+      }
+    },
+    "/audit/all-logs": {
+      "get": {
+        "tags": ["Audit"],
+        "summary": "Kõigi auditi logide pärimine (ainult admin)",
+        "description": "Tagastab kõik süsteemi auditi logid. Ainult administraatoritel lubatud.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maksimaalne tagastatavate kirjete arv",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kõik auditi logid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditLogWithUser"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Autentimine ebaõnnestus" },
+          "403": { "description": "Juurdepääs keelatud. Vaja admin rolli." }
+        }
+      }
+    },
+    "/audit/stats": {
+      "get": {
+        "tags": ["Audit"],
+        "summary": "Auditi statistika (ainult admin)",
+        "description": "Tagastab auditi statistika toimingute kohta. Ainult administraatoritel lubatud.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Statistika periood päevades",
+            "schema": {
+              "type": "integer",
+              "default": 7,
+              "minimum": 1,
+              "maximum": 365
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Auditi statistika",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditStats"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Autentimine ebaõnnestus" },
+          "403": { "description": "Juurdepääs keelatud. Vaja admin rolli." }
+        }
+      }
     }
   },
   "components": {
@@ -402,6 +618,79 @@
           }
         },
         "required": ["id", "fromAccount", "toAccount", "amount", "currency", "status"]
+      },
+      "UserRoles": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "integer" },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["client", "admin", "operator"]
+            }
+          }
+        },
+        "required": ["userId", "roles"]
+      },
+      "UserWithRoles": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "username": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "roles": { "type": "string", "description": "Rollid komadega eraldatud" }
+        },
+        "required": ["id", "username", "created_at"]
+      },
+      "AssignRoleRequest": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "integer" },
+          "roleName": {
+            "type": "string",
+            "enum": ["client", "admin", "operator"]
+          }
+        },
+        "required": ["userId", "roleName"]
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "user_id": { "type": "integer" },
+          "action_type": {
+            "type": "string",
+            "enum": ["login", "logout", "account_create", "transaction", "balance_update", "role_assign"]
+          },
+          "table_name": { "type": "string" },
+          "record_id": { "type": "integer" },
+          "old_values": { "type": "object" },
+          "new_values": { "type": "object" },
+          "ip_address": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "action_type", "created_at"]
+      },
+      "AuditLogWithUser": {
+        "allOf": [
+          { "$ref": "#/components/schemas/AuditLog" },
+          {
+            "type": "object",
+            "properties": {
+              "username": { "type": "string" }
+            }
+          }
+        ]
+      },
+      "AuditStats": {
+        "type": "object",
+        "properties": {
+          "action_type": { "type": "string" },
+          "count": { "type": "integer" },
+          "unique_users": { "type": "integer" }
+        },
+        "required": ["action_type", "count", "unique_users"]
       }
     }
   }
