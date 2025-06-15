@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
+const { getTokenBlacklist } = require('../controllers/authController');
 
 // Читаем публичный ключ для проверки токенов, путь берется из переменной окружения
 const publicKey = fs.readFileSync(process.env.PUBLIC_KEY_PATH, 'utf8');
@@ -7,15 +8,20 @@ const publicKey = fs.readFileSync(process.env.PUBLIC_KEY_PATH, 'utf8');
 function authenticateJWT(req, res, next) {
     const authHeader = req.headers.authorization;
 
-    // Проверяем наличие заголовка авторизации
+    // Check for authorization header
     if (!authHeader) {
         return res.status(401).json({ message: 'Нет токена авторизации' });
     }
 
-    // Ожидается формат "Bearer <токен>"
+    // Expected format is "Bearer <token>"
     const token = authHeader.split(' ')[1];
     if (!token) {
         return res.status(401).json({ message: 'Нет токена авторизации' });
+    }
+    
+    // Check if token is blacklisted
+    if (getTokenBlacklist().has(token)) {
+        return res.status(401).json({ message: 'Token has been invalidated' });
     }
 
     // Верификация токена с использованием публичного ключа и алгоритма RS256

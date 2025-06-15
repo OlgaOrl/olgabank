@@ -1,5 +1,8 @@
 const Account = require('../models/Account');
 
+// Add valid currencies constant
+const VALID_CURRENCIES = ['EUR', 'USD', 'GBP'];
+
 /**
  * Generates a unique account number using the prefix from environment variables.
  * @returns {string} Unique account number.
@@ -20,10 +23,16 @@ function generateAccountNumber() {
 exports.createAccount = async (req, res) => {
     try {
         const { currency } = req.body;
+        
         if (!currency) {
-            return res.status(400).json({ error: 'Currency field is required' });
+            return res.status(400).json({ error: 'Currency is required' });
         }
-
+        
+        // Validate currency
+        if (!VALID_CURRENCIES.includes(currency)) {
+            return res.status(400).json({ error: 'Invalid currency. Allowed: EUR, USD, GBP' });
+        }
+        
         const ownerId = req.user.userId;
         const accountNumber = generateAccountNumber();
 

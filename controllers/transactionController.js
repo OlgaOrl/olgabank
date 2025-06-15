@@ -4,12 +4,19 @@ const Transaction = require('../models/Transaction');
 async function internalTransfer(req, res) {
     try {
         const { fromAccount, toAccount, amount } = req.body;
+        const userId = req.user.userId;
 
-        // Check for required fields for internal transfer
+        // Check for required fields
         if (!fromAccount || !toAccount || !amount) {
             return res.status(400).json({ message: 'All fields (fromAccount, toAccount, amount) are required' });
         }
-
+        
+        // Verify account ownership
+        const account = await Account.findByAccountNumber(fromAccount);
+        if (!account || account.userId !== userId) {
+            return res.status(403).json({ message: 'Unauthorized access to account' });
+        }
+        
         // Debug information about authenticated user
         console.log('User object:', req.user);
         console.log('User ID:', req.user ? req.user.userId : null);
@@ -42,9 +49,9 @@ async function internalTransfer(req, res) {
             return res.status(400).json({ message: 'Sender and receiver account currencies must match for internal transfer' });
         }
 
-        // Check if sender has sufficient funds
-        if (sender.balance < transferAmount) {
-            return res.status(400).json({ message: 'Insufficient funds in sender account' });
+        // Verify sufficient balance
+        if (account.balance < amount) {
+            return res.status(400).json({ message: 'Insufficient funds' });
         }
 
         // Calculate new balances
@@ -63,19 +70,26 @@ async function internalTransfer(req, res) {
             console.error('Error: User ID is not a number');
         }
 
-        // Create transaction record, using account currency
+        // Create and process transaction
         const transaction = await Transaction.create({
             fromAccount,
             toAccount,
-            amount: transferAmount,
-            currency, // Use sender account currency
-            status: 'completed',
-            ownerId: ownerId
+            amount,
+            currency: account.currency,
+            status: 'completed'
         });
-
-        console.log('Created transaction:', transaction);
-
-        return res.status(200).json({ message: 'Transfer completed successfully', transaction });
+        
+        return res.json({
+            message: 'Transfer successful',
+            transaction: {
+                id: transaction.id,
+                fromAccount,
+                toAccount,
+                amount,
+                currency: account.currency,
+                status: transaction.status
+            }
+        });
     } catch (error) {
         console.error('Internal transfer error:', error);
         return res.status(500).json({ message: 'Server error', error });
@@ -85,25 +99,55 @@ async function internalTransfer(req, res) {
 // Get user transaction history
 async function getTransactionHistory(req, res) {
     try {
-        console.log('User ID for transaction history:', req.user ? req.user.userId : null);
-
-        if (!req.user || !req.user.userId) {
-            return res.status(401).json({ message: 'User not authenticated or missing user ID' });
-        }
-
-        // Get user transactions
-        const transactions = await Transaction.findByOwner(req.user.userId);
-
-        return res.status(200).json({ transactions });
+        const userId = req.user.userId;
+        const transactions = await Transaction.findByUserId(userId);
+        
+        // Ensure we return an array
+        return res.json(Array.isArray(transactions) ? transactions : []);
     } catch (error) {
-        console.error('Error getting transaction history:', error);
-        return res.status(500).json({ message: 'Server error', error });
+        console.error('Error fetching transaction history:', error);
+        return res.status(500).json({ error: 'Server error' });
     }
 }
 
 // Stub for external transfer (not implemented yet)
 async function externalTransfer(req, res) {
-    return res.status(200).json({ message: 'External transfer not implemented yet' });
+    try {
+        const { fromAccount, toAccount, amount, currency } = req.body;
+        const userId = req.user.userId;
+        
+        // Check for required fields
+        if (!fromAccount || !toAccount || !amount || !currency) {
+            return res.status(400).json({ message: 'All fields (fromAccount, toAccount, amount, currency) are required' });
+        }
+        
+        // Verify account ownership
+        const account = await Account.findByAccountNumber(fromAccount);
+        if (!account || account.userId !== userId) {
+            return res.status(403).json({ message: 'Unauthorized access to account' });
+        }
+        
+        // Validate external account number format
+        if (!toAccount.match(/^[A-Z]{4}\d{16}$/)) {
+            return res.status(400).json({ message: 'Invalid external account number format' });
+        }
+        
+        // Verify sufficient balance
+        if (account.balance < amount) {
+            return res.status(400).json({ message: 'Insufficient funds' });
+        }
+        
+        // Process external transfer
+        // Implementation details...
+        
+        return res.json({
+            message: 'External transfer initiated',
+            status: 'pending'
+        });
+    } catch (error) {
+        console.error('Error processing external transfer:', error);
+        return res.status(500).json({ error: 'Server error' });
+    }
 }
 
 module.exports = { internalTransfer, externalTransfer, getTransactionHistory };

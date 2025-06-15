@@ -6,6 +6,9 @@ const User = require('../models/User');
 // Читаем приватный ключ для подписи токенов (путь берётся из .env)
 const privateKey = fs.readFileSync(process.env.PRIVATE_KEY_PATH, 'utf8');
 
+// Add a blacklist for invalidated tokens
+const tokenBlacklist = new Set();
+
 /**
  * Регистрация нового пользователя.
  * При успешной регистрации сохраняется пользователь в базе и возвращается его ID.
@@ -76,5 +79,17 @@ exports.login = async (req, res) => {
  * Поскольку сервер не хранит состояние токенов, для логаута достаточно вернуть сообщение.
  */
 exports.logout = async (req, res) => {
+    // Get the token from the authorization header
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    if (token) {
+        // Add the token to the blacklist
+        tokenBlacklist.add(token);
+    }
+    
     return res.json({ message: 'Väljalogimine õnnestus' });
 };
+
+// Export the blacklist for use in the JWT middleware
+exports.getTokenBlacklist = () => tokenBlacklist;
