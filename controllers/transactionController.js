@@ -100,7 +100,8 @@ async function internalTransfer(req, res) {
 async function getTransactionHistory(req, res) {
     try {
         const userId = req.user.userId;
-        const transactions = await Transaction.findByUserId(userId);
+        // Change from findByUserId to findByOwner
+        const transactions = await Transaction.findByOwner(userId);
         
         // Ensure we return an array
         return res.json(Array.isArray(transactions) ? transactions : []);
