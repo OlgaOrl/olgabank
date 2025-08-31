@@ -1,14 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const authenticateJWT = require('../middleware/authenticateJWT');
 
-// Регистрация нового пользователя (POST /auth/users)
+// Fix: Use /users endpoint for user creation (REST convention)
 router.post('/users', authController.register);
-
-// Логин пользователя (POST /auth/login)
+router.post('/register', authController.register); // Keep both for compatibility
 router.post('/login', authController.login);
-
-// Выход (POST /auth/logout)
-router.post('/logout', authController.logout);
+router.post('/logout', authenticateJWT, authController.logout);
 
 module.exports = router;

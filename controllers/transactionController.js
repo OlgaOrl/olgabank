@@ -1,169 +1,205 @@
-const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
+const Account = require('../models/Account');
+const User = require('../models/user');
 
-async function internalTransfer(req, res) {
+const internalTransfer = async (req, res) => {
     try {
         const { fromAccount, toAccount, amount } = req.body;
         const userId = req.user.userId;
 
-        // Check for required fields
         if (!fromAccount || !toAccount || !amount) {
-            return res.status(400).json({ message: 'All fields (fromAccount, toAccount, amount) are required' });
-        }
-        
-        // Verify account ownership
-        const account = await Account.findByAccountNumber(fromAccount);
-        console.log('Account found:', account);
-        console.log('User ID from token:', userId, 'type:', typeof userId);
-        console.log('Account owner ID:', account ? account.ownerId : null, 'type:', account ? typeof account.ownerId : null);
-
-        if (!account) {
-            return res.status(404).json({ message: 'Account not found' });
+            return res.status(400).json({ 
+                error: 'All fields (fromAccount, toAccount, amount) are required' 
+            });
         }
 
-        // Convert both IDs to numbers for comparison
-        const accountOwnerId = Number(account.ownerId);
-        const tokenUserId = Number(userId);
-
-        if (accountOwnerId !== tokenUserId) {
-            console.log('Account ownership verification failed');
-            return res.status(403).json({ message: 'Unauthorized access to account' });
-        }
-        
-        // Debug information about authenticated user
-        console.log('User object:', req.user);
-        console.log('User ID:', req.user ? req.user.userId : null);
-
-        // Check if userId exists
-        if (!req.user || !req.user.userId) {
-            return res.status(401).json({ message: 'User not authenticated or missing user ID' });
-        }
-
-        // Convert amount to number and check if positive
         const transferAmount = Number(amount);
         if (isNaN(transferAmount) || transferAmount <= 0) {
-            return res.status(400).json({ message: 'Transfer amount must be a positive number' });
+            return res.status(400).json({ error: 'Amount must be a positive number' });
         }
 
-        // Get user accounts by ID (set by authentication middleware)
-        const accounts = await Account.findByOwner(req.user.userId);
-        const sender = accounts.find(acc => acc.accountNumber === fromAccount);
-        const receiver = accounts.find(acc => acc.accountNumber === toAccount);
-
-        if (!sender || !receiver) {
-            return res.status(404).json({ message: 'One or both accounts not found' });
+        // Get sender account and verify ownership
+        const senderAccount = await Account.findByAccountNumber(fromAccount);
+        
+        if (!senderAccount) {
+            return res.status(404).json({ error: 'Sender account not found' });
         }
 
-        // For internal transfers, use sender account currency
-        const currency = sender.currency;
-
-        // Check that account currencies match
-        if (sender.currency !== receiver.currency) {
-            return res.status(400).json({ message: 'Sender and receiver account currencies must match for internal transfer' });
+        // Fix: Check account ownership
+        if (senderAccount.userId !== userId) {
+            return res.status(403).json({ error: 'Access denied to sender account' });
         }
 
-        // Verify sufficient balance
-        if (account.balance < amount) {
-            return res.status(400).json({ message: 'Insufficient funds' });
+        // Fix: Check sufficient funds
+        if (senderAccount.balance < transferAmount) {
+            return res.status(400).json({ error: 'Insufficient funds' });
         }
 
-        // Calculate new balances
-        const newSenderBalance = sender.balance - transferAmount;
-        const newReceiverBalance = receiver.balance + transferAmount;
-
-        // Update account balances in database
-        await Account.updateBalance(fromAccount, newSenderBalance);
-        await Account.updateBalance(toAccount, newReceiverBalance);
-
-        // Ensure userId is a number
-        const ownerId = Number(req.user.userId);
-        console.log('Owner ID for transaction:', ownerId);
-
-        if (isNaN(ownerId)) {
-            console.error('Error: User ID is not a number');
+        // Get receiver account and verify ownership
+        const receiverAccount = await Account.findByAccountNumber(toAccount);
+        
+        if (!receiverAccount) {
+            return res.status(404).json({ error: 'Receiver account not found' });
         }
 
-        // Create and process transaction
+        if (receiverAccount.userId !== userId) {
+            return res.status(403).json({ error: 'Access denied to receiver account' });
+        }
+
+        // Update balances
+        await Account.updateBalance(fromAccount, senderAccount.balance - transferAmount);
+        await Account.updateBalance(toAccount, receiverAccount.balance + transferAmount);
+
+        // Create transaction record
         const transaction = await Transaction.create({
             fromAccount,
             toAccount,
-            amount,
-            currency: account.currency,
+            amount: transferAmount,
+            currency: senderAccount.currency,
             status: 'completed',
-            ownerId: Number(req.user.userId),  // Add ownerId to ensure it's saved
+            ownerId: userId,
             transactionType: 'internal'
         });
-        
-        return res.json({
+
+        // Fix: Include status in response
+        res.json({
             message: 'Transfer successful',
             transaction: {
                 id: transaction.id,
                 fromAccount,
                 toAccount,
-                amount,
-                currency: account.currency,
-                status: transaction.status
+                amount: transferAmount,
+                currency: senderAccount.currency,
+                status: 'completed'
             }
         });
     } catch (error) {
         console.error('Internal transfer error:', error);
-        return res.status(500).json({ message: 'Server error', error });
+        res.status(500).json({ error: 'Server error' });
     }
-}
+};
 
-// Get user transaction history
-async function getTransactionHistory(req, res) {
-    try {
-        const userId = req.user.userId;
-        // Change from findByUserId to findByOwner
-const transactions = await Transaction.findByOwner(userId);
-        
-        // Ensure we return an array
-        return res.json(Array.isArray(transactions) ? transactions : []);
-    } catch (error) {
-        console.error('Error fetching transaction history:', error);
-        return res.status(500).json({ error: 'Server error' });
-    }
-}
-
-// Stub for external transfer (not implemented yet)
-async function externalTransfer(req, res) {
+const externalTransfer = async (req, res) => {
     try {
         const { fromAccount, toAccount, amount, currency } = req.body;
         const userId = req.user.userId;
         
-        // Check for required fields
+        // Validation
         if (!fromAccount || !toAccount || !amount || !currency) {
-            return res.status(400).json({ message: 'All fields (fromAccount, toAccount, amount, currency) are required' });
+            return res.status(400).json({ 
+                error: 'Missing required fields: fromAccount, toAccount, amount, currency' 
+            });
         }
         
-        // Verify account ownership
-        const account = await Account.findByAccountNumber(fromAccount);
-        if (!account || account.userId !== userId) {
-            return res.status(403).json({ message: 'Unauthorized access to account' });
+        const transferAmount = Number(amount);
+        if (isNaN(transferAmount) || transferAmount <= 0) {
+            return res.status(400).json({ error: 'Amount must be positive' });
         }
         
-        // Validate external account number format
-        if (!toAccount.match(/^[A-Z]{4}\d{16}$/)) {
-            return res.status(400).json({ message: 'Invalid external account number format' });
+        // Verify account ownership and sufficient funds
+        const sourceAccount = await Account.findByAccountNumber(fromAccount);
+        
+        if (!sourceAccount) {
+            return res.status(404).json({ error: 'Source account not found' });
         }
         
-        // Verify sufficient balance
-        if (account.balance < amount) {
-            return res.status(400).json({ message: 'Insufficient funds' });
+        if (sourceAccount.userId !== userId) {
+            return res.status(403).json({ error: 'Access denied to source account' });
         }
         
-        // Process external transfer
-        // Implementation details...
+        if (sourceAccount.balance < transferAmount) {
+            return res.status(400).json({ error: 'Insufficient funds' });
+        }
         
-        return res.json({
-            message: 'External transfer initiated',
-            status: 'pending'
+        // Validate currency
+        const validCurrencies = ['EUR', 'USD', 'GBP'];
+        if (!validCurrencies.includes(currency)) {
+            return res.status(400).json({ 
+                error: 'Invalid currency. Allowed: EUR, USD, GBP' 
+            });
+        }
+        
+        // Check if target account is external (different bank prefix)
+        const bankPrefix = process.env.BANK_PREFIX || 'BANK';
+        if (toAccount.startsWith(bankPrefix)) {
+            return res.status(400).json({ 
+                error: 'Use internal transfer for same bank accounts' 
+            });
+        }
+        
+        // Create transaction record with pending status
+        const externalId = generateExternalTransactionId();
+        const transaction = await Transaction.create({
+            fromAccount,
+            toAccount,
+            amount: transferAmount,
+            currency,
+            status: 'pending',
+            ownerId: userId,
+            transactionType: 'external',
+            externalId
         });
+        
+        // Debit source account immediately
+        await Account.updateBalance(fromAccount, sourceAccount.balance - transferAmount);
+        
+        // TODO: Implement Central Bank communication
+        // This would involve:
+        // 1. Create JWT-signed transaction packet
+        // 2. Send to Central Bank API
+        // 3. Handle response and update transaction status
+        
+        // For now, mark as in progress
+        await Transaction.updateStatus(transaction.id, 'inProgress');
+        
+        res.json({
+            message: 'External transfer initiated',
+            transaction: {
+                id: transaction.id,
+                transactionId: transaction.id,
+                status: 'inProgress',
+                amount: transferAmount,
+                currency,
+                fromAccount,
+                toAccount,
+                externalId
+            }
+        });
+        
     } catch (error) {
-        console.error('Error processing external transfer:', error);
-        return res.status(500).json({ error: 'Server error' });
+        console.error('External transfer error:', error);
+        res.status(500).json({ error: 'External transfer failed' });
     }
+};
+
+// Fix: Return transactions as array format
+const getTransactionHistory = async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        
+        // Get transactions for user
+        const transactions = await Transaction.findByOwner(userId);
+
+        // Fix: Return array directly, not wrapped in object
+        res.json(transactions);
+    } catch (error) {
+        console.error('Get transaction history error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+// Helper functions
+function generateExternalTransactionId() {
+    return `EXT_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-module.exports = { internalTransfer, externalTransfer, getTransactionHistory };
+function extractBankFromAccountNumber(accountNumber) {
+    // Extract bank prefix from account number (first 3-4 characters)
+    return accountNumber.substring(0, 4);
+}
+
+module.exports = {
+    internalTransfer,
+    externalTransfer,
+    getTransactionHistory
+};
